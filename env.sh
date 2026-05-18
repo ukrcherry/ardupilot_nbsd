@@ -9,7 +9,7 @@ LOCALBASE=${LOCALBASE:-/usr/pkg}
 
 # pkgsrc branch (quarterly stable). Adjust if you want -current.
 # 2025Q1 is broadly compatible with NetBSD 11.0_RC4.
-PKGSRC_BRANCH=${PKGSRC_BRANCH:-pkgsrc-2025Q1}
+PKGSRC_BRANCH=${PKGSRC_BRANCH:-pkgsrc-2025Q3}
 
 # Where we clone ArduPilot.
 ARDUPILOT_DIR=${ARDUPILOT_DIR:-$HOME/ardupilot}
