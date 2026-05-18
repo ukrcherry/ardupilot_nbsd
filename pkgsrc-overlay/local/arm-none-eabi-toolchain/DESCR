@@ -1,0 +1,15 @@
+GCC 13.2.0 cross-compiler suite (binutils + gcc + newlib + libstdc++)
+targeting bare-metal ARM Cortex-M / Cortex-R processors.
+
+Built from the canonical upstream FSF tarballs in four stages:
+  1. binutils 2.42 for arm-none-eabi
+  2. first-stage gcc (C only, no libc)
+  3. newlib (small C library for bare-metal)
+  4. second-stage gcc with full C++ support and libstdc++ on top of newlib
+
+Used by ArduPilot to build firmware for STM32-based flight controllers
+such as the MatekH743. The in-tree pkgsrc cross/arm-none-eabi-gcc package
+is gcc 8.3.0, which is too old for current ArduPilot - it needs
+g++ >= 10.2.1.
+
+Installs under ${PREFIX}/cross/arm-none-eabi/.
