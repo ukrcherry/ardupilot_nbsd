@@ -19,32 +19,55 @@ set -eu
 echo "==> Bootstrap step 00: pkgsrc tree + mk.conf + bash"
 
 # --- 0. Verify the 'comp' distribution set is installed -------------------
-# Without comp.tgz, /usr/include is mostly empty and EVERY pkgsrc build
-# fails with "<package> requires a working dlopen()" because pkgsrc cannot
+# Without comp, /usr/include is mostly empty and EVERY pkgsrc build fails
+# with "<package> requires a working dlopen()" because pkgsrc cannot
 # compile its dlopen probe in mk/dlopen.builtin.mk. The canary symptom is
-# /usr/bin/lex missing; the root cause is comp.tgz not extracted at install.
-# Diagnosed on the netbsd-current-users list by Martin Husemann and matthew
-# green, July 2021:
-#   http://mail-index.netbsd.org/current-users/2021/07/10/msg041251.html
+# /usr/bin/lex missing; the root cause is the 'comp' set not being
+# extracted at install time.
+#   ref: http://mail-index.netbsd.org/current-users/2021/07/10/msg041251.html
+#
+# Filename note: NetBSD 11.x ships sets as .tar.xz (xz-compressed). The
+# old .tgz layout was retired around the 9 -> 10 era - the 11.0 INSTALL
+# notes confirm "the amd64 binary distribution sets are distributed as
+# tar files compressed with xz named with the extension .tar.xz".
+# We extract with `tar -xJpf` (capital J = xz) rather than `-xzpf` (z = gzip).
 if [ ! -f /usr/include/dlfcn.h ] || [ ! -x /usr/bin/lex ]; then
     echo "    'comp' distribution set is missing - pkgsrc cannot build without it."
-    echo "    Fetching comp/man/misc sets for NetBSD-${NETBSD_RELEASE}/${NETBSD_ARCH}"
-    echo "    from ${NETBSD_SETS_URL}"
-    for set in comp man misc; do
-        echo "      -> ${set}.tgz"
-        # Stream tarball straight into tar(1) and extract at /, the layout
-        # inside the tarball is rooted at ./usr/... so tar lands files
-        # exactly where sysinst would have put them.
-        sudo ftp -V -o - "${NETBSD_SETS_URL}/${set}.tgz" \
-            | sudo tar -xzpf - -C / \
-            || { echo "ERROR: failed to install ${set}.tgz" >&2; exit 1; }
+    echo "    Fetching from ${NETBSD_SETS_URL}"
+
+    # 'comp' is mandatory; we abort if it can't be fetched.
+    # 'man' / 'manhtml' / 'misc' are nice-to-haves and best-effort:
+    # NetBSD 11 split manhtml out of man, and on a stripped-down image
+    # one or the other may not be published. We don't fail the install
+    # for them - none are needed for pkgsrc to build.
+    REQUIRED_SETS="comp"
+    OPTIONAL_SETS="man manhtml misc"
+
+    for set in $REQUIRED_SETS; do
+        echo "      -> ${set}.tar.xz (required)"
+        sudo ftp -V -o - "${NETBSD_SETS_URL}/${set}.tar.xz" \
+            | sudo tar -xJpf - -C / \
+            || { echo "ERROR: failed to install ${set}.tar.xz" >&2; exit 1; }
     done
+
+    for set in $OPTIONAL_SETS; do
+        echo "      -> ${set}.tar.xz (optional)"
+        if sudo ftp -V -o - "${NETBSD_SETS_URL}/${set}.tar.xz" \
+            | sudo tar -xJpf - -C / 2>/dev/null
+        then
+            echo "         installed"
+        else
+            echo "         not available - skipping (harmless)"
+        fi
+    done
+
     # Belt-and-braces re-check.
     if [ ! -f /usr/include/dlfcn.h ] || [ ! -x /usr/bin/lex ]; then
         echo "ERROR: comp set extracted but expected files still missing." >&2
+        echo "       Check ${NETBSD_SETS_URL}/comp.tar.xz manually." >&2
         exit 1
     fi
-    echo "    comp/man/misc sets installed."
+    echo "    comp set installed successfully."
 else
     echo "    comp set OK (/usr/include/dlfcn.h and /usr/bin/lex present)"
 fi

@@ -53,9 +53,10 @@ Two known dependency-version pitfalls that the scripts handle:
   `/usr/include`, static libs, `lex(1)`, `yacc(1)`, etc.). Without it,
   every pkgsrc build fails with the cryptic
   `<package> requires a working dlopen()` because pkgsrc can't compile
-  its dlopen probe. Script `00` auto-detects this and installs
-  `comp/man/misc` from the CDN if missing — but if you ever see that
-  error elsewhere, this is the cause.
+  its dlopen probe. Script `00` auto-detects this and fetches
+  `comp.tar.xz` from the CDN if missing (NetBSD 11 ships sets as
+  xz-compressed `.tar.xz`, not the older `.tgz`). If you ever see the
+  dlopen error elsewhere, this is the cause.
 
 
 ## Choosing a pkgsrc branch
