@@ -49,6 +49,27 @@ Two known dependency-version pitfalls that the scripts handle:
   call it as `make` (not `bmake`, which would be needed on Linux/macOS).
 * Default install prefix for pkgsrc on NetBSD is `/usr/pkg`. The
   toolchain we build lands under `/usr/pkg/cross/arm-none-eabi/`.
+* The **`comp` distribution set must be installed** (it holds
+  `/usr/include`, static libs, `lex(1)`, `yacc(1)`, etc.). Without it,
+  every pkgsrc build fails with the cryptic
+  `<package> requires a working dlopen()` because pkgsrc can't compile
+  its dlopen probe. Script `00` auto-detects this and installs
+  `comp/man/misc` from the CDN if missing — but if you ever see that
+  error elsewhere, this is the cause.
+
+
+## Choosing a pkgsrc branch
+
+The default is `pkgsrc-2026Q1` (the latest quarterly as of May 2026).
+Override at invocation time:
+
+    PKGSRC_BRANCH=pkgsrc-2025Q4 sh ./install-all.sh   # older quarterly
+    PKGSRC_BRANCH=current       sh ./install-all.sh   # rolling dev tree
+
+The URL path component is exactly the value of `PKGSRC_BRANCH`. For
+"current" use the literal string `current`, not `pkgsrc-current`. The
+custom ARM-toolchain overlay in step 03 is needed regardless of branch
+— even on `current`, in-tree `cross/arm-none-eabi-gcc` is still 8.3.0.
 
 
 ## Files

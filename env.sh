@@ -7,9 +7,13 @@ PKGSRC_DIR=${PKGSRC_DIR:-/usr/pkgsrc}
 # Where pkgsrc installs things. NetBSD default.
 LOCALBASE=${LOCALBASE:-/usr/pkg}
 
-# pkgsrc branch (quarterly stable). Adjust if you want -current.
-# 2025Q1 is broadly compatible with NetBSD 11.0_RC4.
-PKGSRC_BRANCH=${PKGSRC_BRANCH:-pkgsrc-2025Q3}
+# pkgsrc branch, used directly as the URL path component on
+# cdn.NetBSD.org/pub/pkgsrc/<branch>/pkgsrc.tar.gz.
+#   pkgsrc-2026Q1, pkgsrc-2025Q4, pkgsrc-2025Q3, ...  quarterly stable
+#   current                                            rolling dev (~weekly tarball)
+# 2026Q1 is the latest quarterly as of May 2026; "current" gets you the newest
+# versions of everything but breaks more often.
+PKGSRC_BRANCH=${PKGSRC_BRANCH:-pkgsrc-2026Q1}
 
 # Where we clone ArduPilot.
 ARDUPILOT_DIR=${ARDUPILOT_DIR:-$HOME/ardupilot}
@@ -25,6 +29,13 @@ ARM_NEWLIB_VERSION=4.4.0.20231231
 
 # Where the cross-toolchain ends up (inside pkgsrc LOCALBASE).
 ARM_PREFIX=$LOCALBASE/cross/arm-none-eabi
+
+# NetBSD release & arch - used to fetch missing distribution sets (comp.tgz
+# etc.) from the CDN if the system was installed without them. Auto-detected
+# from uname; override if you're cross-installing or building on a snapshot.
+NETBSD_RELEASE=${NETBSD_RELEASE:-$(uname -r)}
+NETBSD_ARCH=${NETBSD_ARCH:-$(uname -m)}
+NETBSD_SETS_URL=${NETBSD_SETS_URL:-https://cdn.NetBSD.org/pub/NetBSD/NetBSD-${NETBSD_RELEASE}/${NETBSD_ARCH}/binary/sets}
 
 # Make sure pkgsrc-installed binaries are on PATH for every script.
 # /usr/pkg/bin is where bash, git, python3, etc. land.
