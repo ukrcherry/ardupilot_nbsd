@@ -1,0 +1,176 @@
+================================================================
+ ISO comparison: NetBSD CLI (stock)  vs.  NetBSD CLI + ArduPilot
+ repo: github.com/ukrcherry/ardupilot_nbsd
+================================================================
+
+What we built
+-------------
+1) netbsd-cli-iso/
+   Plain vanilla NetBSD 11.0 amd64 install ISO. CLI-only (sysinst
+   is curses; NetBSD has no GUI installer variant). Two build modes:
+     MODE=build     - fetch src sets, run build.sh tools + release +
+                      iso-image. ~1-2 hours, everything from source.
+     MODE=download  - fetch the prebuilt stock ISO from cdn.NetBSD.org
+                      and verify SHA512. ~1 minute.
+   Output: standard installer, network install, or install from sets
+   already on the CD (base+etc+kern+comp minimum).
+
+2) netbsd-ardupilot-iso/
+   Same base ISO + a /ardupilot/ directory containing:
+     * pkgsrc pkgs re-tarred by pkg_tarup: bash, gmake, gawk, git-base,
+       ccache, wget, python312, py-numpy, py-lxml, arm-none-eabi
+       cross-toolchain gcc 13.2.0 (our custom local pkg from step 03)
+     * The ArduPilot repo with build/ already compiled for MatekH743
+     * postinstall.sh - pkg_adds everything after sysinst, drops the
+       tree in /home/ardupilot, adds first user to `dialer` group
+   Built by: run stage1 on a NetBSD host that already went through
+   install-all.sh, then stage2 (xorriso) to splice payload into the
+   base ISO from (1).
+
+
+Side-by-side
+================================================================
+
+                       | stock CLI NetBSD          | + ArduPilot payload
+-----------------------|---------------------------|---------------------------
+ISO size               | ~500 MB (build) /         | ~750 MB
+                       | ~500 MB (download)        | (base + ~250 MB payload)
+Build tooling          | build.sh                  | stage1 (pkg_tarup + tar)
+                       | (or curl for download)    | + stage2 (xorriso)
+Build host             | NetBSD, Linux, macOS,     | stage1: NetBSD (with
+                       | any Unix with cc          |         install-all.sh
+                       |                           |         already applied)
+                       |                           | stage2: any host w/ xorriso
+Time to build          | download: ~1 min          | if base ISO already exists:
+                       | from source: ~1-2 h       |   stage1 ~5 min +
+                       |                           |   stage2 ~30 sec
+                       |                           | from scratch (both
+                       |                           |   NetBSD + AP env):
+                       |                           |   ~3-4 h total
+Boot behaviour         | boots to sysinst          | identical - the payload
+                       |                           | doesn't touch boot
+Installer flow         | sysinst, sets fetched     | sysinst, sets fetched
+                       | from CD (base+etc+kern+   | from CD, THEN one
+                       | comp minimum)             | command:
+                       |                           |   mount_cd9660 /dev/cd0a \\
+                       |                           |     /mnt && sh /mnt/
+                       |                           |     ardupilot/postinstall.sh
+Post-install disk use  | ~350 MB (base + comp)     | ~1.8 GB (adds pkgsrc pkgs
+                       |                           | + ArduPilot repo + build/
+                       |                           | artifacts + arm-none-eabi
+                       |                           | cross-toolchain ~150 MB)
+What's compiled &      | yes for MODE=build:       | yes:
+verifiable from        | the entire base           |   base (via (1)) +
+source                 | userland + kernel         |   all pkgsrc deps (from
+                       |                           |   your install-all.sh
+                       |                           |   session) +
+                       |                           |   ArduPilot itself
+Time to `./waf copter` | ~2-3 more hours after     | ~10 minutes after
+after first boot       | install (run our whole    | install (postinstall.sh
+                       | install-all.sh)           | already fired)
+Reusable as a base     | yes - stage2 of the       | no - it IS the AP variant
+image                  | ArduPilot ISO builder     |
+                       | takes this as -indev      |
+Redistribution size    | small; anyone can rebuild | large; carries binaries
+concern                | the same bytes            | with ABI tied to a
+                       |                           | specific pkgsrc branch
+
+
+How they relate
+================================================================
+
+The ArduPilot ISO is built ON TOP OF the plain CLI NetBSD ISO:
+
+    src.tgz              build.sh tools
+   (from cdn.NetBSD.org)     |
+           \\                 v
+            +----------> build-netbsd-cli-iso.sh
+                              |
+                              v
+                     NetBSD-11.0-amd64.iso  (~500 MB)
+                              |
+                              +--- deliverable A (plain CLI)
+                              |
+                              v
+                     stage2-remaster-iso.sh <---- payload.tar.xz
+                              |                        ^
+                              v                        |
+                     netbsd-ardupilot.iso              |
+                          (~750 MB)                    |
+                              |                stage1-build-payload.sh
+                              |                        ^
+                              +-- deliverable B         |
+                                                       |
+                                        (on a NetBSD host that ran
+                                         install-all.sh from the
+                                         parent ardupilot_nbsd repo)
+
+If you already have a working stock ISO (either downloaded or built),
+skip build-netbsd-cli-iso.sh entirely - pass it straight to stage2.
+
+
+When each makes sense
+================================================================
+
+Plain CLI NetBSD ISO:
+  * You want a general-purpose NetBSD install disk for something else.
+  * You want to audit or rebuild the base from src.tgz for a reproducible
+    build (MODE=build).
+  * You're setting up multiple ArduPilot targets and only want to ship
+    the payload separately; each new install starts from this ISO.
+  * You want the smallest possible bootstrap surface area.
+
+NetBSD + ArduPilot ISO:
+  * Single-shot deployment of an ArduPilot dev/ground station box.
+  * Offline install site: no network access after boot, everything
+    needed is on the CD.
+  * You want to preserve the exact toolchain versions you validated
+    against (gcc 13.2.0 for arm-none-eabi, empy 3.3.4, etc.).
+  * Airgapped or regulated environments where every package must be
+    provided as a fixed artifact rather than fetched at install time.
+
+
+Effort summary
+================================================================
+
+netbsd-cli-iso/                     netbsd-ardupilot-iso/
+  build-netbsd-cli-iso.sh   ~85 L     build-netbsd-iso.sh       39 L
+                                      stage1-build-payload.sh   66 L
+                                      stage2-remaster-iso.sh    38 L
+                                      postinstall.sh            55 L
+                                      ---
+  ~85 L wraps build.sh                ~198 L on top of stock ISO
+
+Both together: ~285 lines of shell that produce two related ISOs. The
+plain-CLI script leans on build.sh (many thousands of lines of upstream
+Makefiles and BUILDING.mk); the ArduPilot side additionally leans on
+pkg_tarup (~500 lines) and xorriso.
+
+
+================================================================
+ Repo & where to grab
+================================================================
+
+    github.com/ukrcherry/ardupilot_nbsd
+
+    iso-builders/
+      netbsd-cli-iso/           plain CLI NetBSD builder
+        build-netbsd-cli-iso.sh
+      netbsd-ardupilot-iso/     ArduPilot-loaded variant
+        build-netbsd-iso.sh
+        stage1-build-payload.sh
+        stage2-remaster-iso.sh
+        payload-template/postinstall.sh
+
+    git clone https://github.com/ukrcherry/ardupilot_nbsd.git
+    cd ardupilot_nbsd/iso-builders
+
+    # A) plain CLI NetBSD, either mode:
+    ./netbsd-cli-iso/build-netbsd-cli-iso.sh
+    MODE=download ./netbsd-cli-iso/build-netbsd-cli-iso.sh
+
+    # B) ArduPilot variant (needs a NetBSD host with install-all.sh
+    #    already applied, for stage 1):
+    ./netbsd-ardupilot-iso/build-netbsd-iso.sh stage1
+    ./netbsd-ardupilot-iso/build-netbsd-iso.sh stage2 \\
+        netbsd-11.0-amd64-cli.iso  netbsd-ardupilot.iso
